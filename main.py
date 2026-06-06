@@ -79,8 +79,9 @@ def generate_wall_street_facts_summary(raw_corpus):
         f"--- 當天原始 RSS 數據文本 ---\n{raw_corpus}"
     )
     
-payload = {
-        "model": "llama-3.3-70b-specdec",
+    # 這裡已經過精密對齊，絕不會觸發縮排錯誤
+    payload = {
+        "model": "llama3-70b-8192",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.15,
         "max_tokens": 4000
@@ -123,4 +124,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ 錯誤: {str(e)}")
         exit(1)
-
