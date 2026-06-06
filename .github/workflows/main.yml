@@ -2,24 +2,49 @@ name: Daily Wall Street & Tech Summary
 
 on:
   schedule:
-    - cron: '0 22 * * *' # 每天國際時間 22:00（等於台灣時間早上 06:00 AM 自動送達）
-  workflow_dispatch: # 保留此項：允許隨時點擊按鈕手動測試
+    # ⏰ 唯一的黃金鬧鐘：台灣時間清晨 05:43（避開整點大塞車，100% 確保起床就能讀）
+    - cron: '43 21 * * *'
+    
+  workflow_dispatch: # 保留這個按鈕，讓你可以隨時手動按一鍵測試
 
 jobs:
-  build:
+  run-script:
     runs-on: ubuntu-latest
     steps:
-    - name: 檢查程式碼
-      uses: actions/checkout@v3
+      - name: 🚀 檢查並下載程式碼
+        uses: actions/checkout@v4
 
-    - name: 設定 Python 環境
-      uses: actions/setup-python@v4
-      with:
-        python-packages: 'requests'
+      - name: 🐍 設定 Python 環境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: 執行情報收集與寄信
-      env:
-        GMAIL_USER: ${{ secrets.GMAIL_USER }}
-        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      run: python main.py
+      - name: 📦 安裝必要聯網與解析套件
+        run: |
+          pip install requests
+
+      - name: 🤖 執行商業分析師自動化腳本
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python main.py
+
+      # 🚨【核心關鍵】萬一上面執行失敗（例如 Groq 掛掉、網路斷線），這裡會立刻啟動補刀寄通知
+      - name: 📨 系統失敗自動告警
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "🚨【系統緊急告警】今日全球資本情報排程執行失敗，請手動檢查！"
+          to: ${{ secrets.GMAIL_USER }}
+          from: GitHub Actions Automated Monitor
+          body: |
+            報告長官：
+            
+            今天清晨 05:43 的「全球資本與技術連動情報」在 GitHub 雲端執行時發生阻礙（可能是 Groq API 金鑰、網路連線或媒體 RSS 源異常）。
+            
+            今日的華爾街日報未能成功送達。請您有空時登入 GitHub 專案的 Actions 頁籤查看紅色錯誤訊息，並可點擊 "Run workflow" 按鈕進行手動人工補發。
