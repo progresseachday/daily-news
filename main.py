@@ -79,12 +79,7 @@ def generate_wall_street_facts_summary(raw_corpus):
         f"--- 當天原始 RSS 數據文本 ---\n{raw_corpus}"
     )
     
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.15,
-        "max_tokens": 4000
-    }
+payload = { "model": "llama-3.3-70b-specdec", "messages": [{"role": "user", "content": prompt}], "temperature": 0.15, "max_tokens": 4000 } 
     
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code == 200:
@@ -123,3 +118,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ 錯誤: {str(e)}")
         exit(1)
+
