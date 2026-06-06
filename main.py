@@ -101,7 +101,7 @@ def send_pure_html_email(html_content_body):
     final_html = f"""
     <html>
     <body style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 10px;">
-        <div>{html_content_body}</div>
+    <div>{html_content_body}</div>
     </body>
     </html>
     """
