@@ -7,39 +7,51 @@ import xml.etree.ElementTree as ET
 import re
 from datetime import datetime
 
-# 1. 讀取環境變數（從 GitHub 保險箱拿鑰匙）
+# 讀取環境變數
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# 2. 【客製化區】RSS 新聞源清單（想改看什麼新聞從這裡換！）
+# 📊 全球權威金融與技術新聞源
 RSS_FEEDS = {
     "CNBC Markets": "https://www.cnbc.com/id/10000115/device/rss/rss.html",
     "MarketWatch": "http://feeds.marketwatch.com/marketwatch/topstories/",
     "Reuters Business": "https://services.radio-france.fr/rss/v2/depeches/reuters/business.xml",
+    "Nikkei Asia Tech": "https://asia.nikkei.com/rss/feed/nar",
     "TechCrunch": "https://techcrunch.com/feed/",
     "VentureBeat": "https://venturebeat.com/feed/"
 }
 
 def clean_html_text(raw_html):
-    if not raw_html: return ""
-    return re.sub(re.compile('<.*?>'), '', raw_html).strip()
+    """移除 RSS 描述中夾雜的 HTML 標籤"""
+    if not raw_html:
+        return ""
+    clean_re = re.compile('<.*?>')
+    return re.sub(clean_re, '', raw_html).strip()
 
 def fetch_global_rss_data():
+    """爬取全球權威媒體 RSS 事實文本"""
     combined_corpus = []
-    print("📡 開始即時同步全球 RSS 新聞源...")
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    print("📡 開始即時同步全球華爾街與 PE 級新聞源Facts...")
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/53736 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/53736"
+    }
 
     for name, url in RSS_FEEDS.items():
         try:
+            print(f"🔄 正在連線權威源: {name}...")
             response = requests.get(url, headers=headers, timeout=15)
-            if response.status_code != 200: continue
+            if response.status_code != 200:
+                continue
+                
             root = ET.fromstring(response.content)
             items = root.findall(".//item")
             
             count = 0
             for item in items:
-                if count >= 5: break # 每個源只取最新 5 條，防範字數爆量
+                if count >= 4:
+                    break
                 title = item.find("title")
                 link = item.find("link")
                 desc = item.find("description")
@@ -47,23 +59,29 @@ def fetch_global_rss_data():
                 title_txt = title.text if title is not None else ""
                 link_txt = link.text if link is not None else ""
                 desc_txt = clean_html_text(desc.text) if desc is not None else ""
-                if len(desc_txt) > 150: desc_txt = desc_txt[:150] + "..."
+                
+                if len(desc_txt) > 150:
+                    desc_txt = desc_txt[:150] + "..."
                 
                 if title_txt and link_txt:
-                    combined_corpus.append(f"來源: {name}\n標題: {title_txt}\n網址: {link_txt}\n大意: {desc_txt}\n---")
+                    combined_corpus.append(f"來源: {name}\n標題: {title_txt}\n網址: {link_txt}\n內文: {desc_txt}\n---")
                     count += 1
+            print(f"✅ {name} 同步成功。")
         except Exception as e:
-            print(f"❌ 無法讀取 {name}: {str(e)}")
+            print(f"❌ 解析 {name} 發生阻礙: {str(e)}")
             
     return "\n\n".join(combined_corpus)
 
 def generate_wall_street_facts_summary(raw_corpus):
+    """呼叫 Groq 進行極致去重與高密度硬核數據提煉"""
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
     
-    # 【高穩定度 Prompt 設計】結構化角色、死命令、防範 AI 輸出英文
     prompt = (
-        "你現在是華爾街頂級私募基金（PE）的常務董事兼投資委員會主席。你擁有極其嚴謹的商業分析與數據傳導邏輯。你蔑視一切缺乏數據支撐的情感描述和空泛詞彙（如「大幅拉高」、「前景看好」、「市場好消息」、「帶來實質衝擊」等皆為不合格的廢話）。\n\n"
+        "你現在是華爾街頂級私募基金（PE）的常務董事兼投資委員會主席。你擁有極其嚴謹的商業分析與數據傳導邏輯。妳蔑視一切缺乏數據支撐的情感描述和空泛詞彙（如「大幅拉高」、「前景看好」、「市場好消息」、「帶來實質衝擊」等皆為不合格的廢話）。\n\n"
         "【⚠️ 投資委員會硬核輸出紀律 —— 違者開除】\n"
         "1. 🚨【不准輸出提示詞範例】禁止將本提示詞中用中括號或引號說明的「格式說明文字」當成文本輸出！你必須直接讀取當天實際抓取到的 RSS 文本 facts，若 RSS 文本中缺乏具體數字，請用正統金融邏輯推導具體影響，絕不准出現任何代稱符號！\n"
         "2. 🚨【全繁體中文】所有輸出的文字（包含事件名稱、事實摘要、金融判讀）一律必須使用【繁體中文（台灣習慣用語）】！\n"
@@ -82,7 +100,7 @@ def generate_wall_street_facts_summary(raw_corpus):
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.15, # 設低隨機性，確保 Prompt 極度穩定不發瘋
+        "temperature": 0.1,  # 降低隨機性，讓 AI 極度嚴謹
         "max_tokens": 4000
     }
     
@@ -93,18 +111,26 @@ def generate_wall_street_facts_summary(raw_corpus):
         raise Exception(f"Groq API 報錯: {response.text}")
 
 def send_pure_html_email(html_content_body):
+    """將高效、高數據密度的情報發送至信箱"""
     msg = MIMEMultipart()
     msg["From"] = GMAIL_USER
     msg["To"] = GMAIL_USER
-    msg["Subject"] = f"【當日財經新聞】{datetime.now().strftime('%Y年%m月%d日')} 全球資本連動情報"
+    
+    current_date_str = datetime.now().strftime("%Y年%m月%d日")
+    msg["Subject"] = f"【頂級決策智庫】{current_date_str} 全球資本與技術連動情報"
     
     final_html = f"""
     <html>
-    <body style="font-family: sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 10px;">
-        <div>{html_content_body}</div>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111; max-width: 850px; margin: 0 auto; padding: 15px;">
+        <div style="margin-bottom: 25px;">
+            {html_content_body}
+        </div>
+        <hr style="border: 0; border-top: 1px solid #ddd; margin-top: 30px;">
+        <p style="font-size: 11px; color: #777; margin-top: 10px;">數據矩陣：CNBC / MarketWatch / Reuters / Nikkei Asia / TechCrunch</p>
     </body>
     </html>
     """
+    
     msg.attach(MIMEText(final_html, "html", "utf-8"))
     
     server = smtplib.SMTP("smtp.gmail.com", 587)
@@ -116,11 +142,12 @@ def send_pure_html_email(html_content_body):
 if __name__ == "__main__":
     try:
         rss_corpus = fetch_global_rss_data()
-        if rss_corpus.strip():
+        if not rss_corpus.strip():
+            print("⚠️ 未能在全球 RSS 源中捕獲到任何有效數據。")
+        else:
             final_report = generate_wall_street_facts_summary(rss_corpus)
             send_pure_html_email(final_report)
-            print("🎉 成功發送日報！")
+            print("🎉 任務完美達成，高密度數據信件已成功發送！")
     except Exception as e:
-        print(f"❌ 錯誤: {str(e)}")
+        print(f"❌ 執行中斷錯誤: {str(e)}")
         exit(1)
-
